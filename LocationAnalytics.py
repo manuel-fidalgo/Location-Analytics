@@ -1,4 +1,19 @@
 """
+Manuel Fidalgo Fierro
+This script uses slices of code taken from 
+http://beneathdata.com/how-to/visualizing-my-location-history/
+
+
+--Analyzing and visualizing google location history--
+
+3.	Pre-process the data
+4.	Perform analytics over the data
+5.	Visualising the data
+
+"""
+
+#%%
+"""
 Importing the libraries
 """
 import pandas as pd
@@ -6,6 +21,7 @@ import json
 import numpy as np
 
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import datetime
 from sklearn.cluster import KMeans
 from mpl_toolkits.basemap import Basemap
@@ -16,7 +32,7 @@ import statsmodels.formula.api as smf
 """
 Aux functions
 """
-#Lower left corner, Uppder rigth corner, location to test
+#Params->Lower left corner lat,left corner lon, Uppder rigth corner lat, Uppder rigth corner lat, location to test
 def inside_the_region(lat_00, lon_00, lat_11, lon_11, lat_a, lon_a):
     
     if(lat_a > lat_00 & lat_a < lat_11 & lon_a > lon_00 & lat_a < lon_11):
@@ -25,7 +41,7 @@ def inside_the_region(lat_00, lon_00, lat_11, lon_11, lat_a, lon_a):
         return False
     
 
-
+#Params-> lat first location, lat first location, lat second location, lon second location
 def distance_between_locations(lat_a, lon_a, lat_b, lon_b):
     from math import sin, cos, sqrt, atan2, radians    
     # approximate radius of earth in km
@@ -47,6 +63,7 @@ def distance_between_locations(lat_a, lon_a, lat_b, lon_b):
 
 #%%
 """
+    Design the data requirements
     Reading the JSON file.
 """
 
@@ -64,6 +81,7 @@ del dt
 
 #%%
 """
+    Pre-process the data
     Cleaning the data
 """
 
@@ -73,13 +91,14 @@ data['latitudeE7'] = data['latitudeE7']/float(1e7)
 data['longitudeE7'] = data['longitudeE7']/float(1e7)
 data['timestampMs'] = data['timestampMs'].map(lambda x: float(x)/1000) #to seconds
 data['datetime'] = data.timestampMs.map(datetime.datetime.fromtimestamp)
+
 # Rename fields based on the conversions we just did
 data.rename(columns={'latitudeE7':'latitude', 'longitudeE7':'longitude', 'timestampMs':'timestamp'}, inplace=True)
 data = data[data.accuracy < 100] #Ignore locations with accuracy estimates over 100m
 data.reset_index(drop=True, inplace=True)
 
 
-#Cheching the altitude, as we can see these values are nor correct
+#Cheching the altitude, we can see these values are nor correct.
 #So lets delete all the values over the quantile 90
 data["altitude"].max()
 data["altitude"].min()
@@ -90,16 +109,21 @@ data["altitude"] = data[data["altitude"] < altitude_q]
 
 
 """
+Perform analytics over the data
 Clustering the data
 """
 
+#Statistical analysis of the accuracy, mean media and mode are calculated
 plt.hist(data['accuracy'])
+data["accuracy"].mean()
+data["accuracy"].median()
+data["accuracy"].mode()
 
 cols = ["latitude","longitude"]
 kmeans_data = data[cols]
 
 
-#Lets test is kmeans is a angorith to cluster location into different countries.
+#Lets test if kmeans is a suitable algorithm to cluster location into different countries.
 kmeans = KMeans(init='random', n_clusters=5, random_state=0).fit(kmeans_data)
 clusters = kmeans.predict(kmeans_data)
 
@@ -109,6 +133,7 @@ clusters = kmeans.predict(kmeans_data)
 #%%
 """
 Plotting in a map
+Visualising the data
 """
 
 plt.clf()
@@ -118,9 +143,10 @@ plt.figure(figsize=(15,9))
 lat_a, lon_a = 33.906957, -13.870325 #Lower left corner
 lat_b, lon_b = 57.633679, 53.942175  #Uppder rigth corner
 
-
+#Create a basemap object
 m = Basemap(llcrnrlon=lon_a, llcrnrlat=lat_a, urcrnrlon=lon_b, urcrnrlat=lat_b, resolution='l',projection='cass',lon_0=-4.36,lat_0=54.7)
 
+#Coaslines and continents
 m.drawcoastlines()
 m.fillcontinents(color='linen',lake_color='skyblue')
 
@@ -131,7 +157,7 @@ m.drawmeridians(np.arange(-20.,71.,2.))
 m.drawmapboundary(fill_color='skyblue')
 m.drawcountries()
 
-
+#Data will be used in the clustering
 lons = kmeans_data["longitude"].tolist()
 lats = kmeans_data["latitude"].tolist()
 
@@ -139,16 +165,17 @@ lats = kmeans_data["latitude"].tolist()
 x, y = m(lons,lats)
 m.scatter(x,y,c=clusters,marker = 'o', zorder=10)
 
-
 plt.title("European Map")
 plt.show()
 
 #%%
 """
+Perform analytics over the data
 Computing fligths
 """
 
-##CODE TAKEN FROM WEB 
+# CODE TAKEN FROM 
+# http://beneathdata.com/how-to/visualizing-my-location-history/
 
 degrees_to_radians = np.pi/180.0 
 data['phi'] = (90.0 - data.latitude) * degrees_to_radians 
@@ -160,7 +187,8 @@ data['distance'] = np.arccos(
     ) * 6378.100 # radius of earth in km
 
 data['speed'] = data.distance/(data.timestamp - data.timestamp.shift(-1))*3600 #km/hr
-## END REGION
+
+## END CODE TAKEN FROM
 
 
 possible_flights = data[data["distance"] > 500]
@@ -168,7 +196,9 @@ possible_flights = data[data["distance"] > 500]
 lons = possible_flights["longitude"].tolist()
 lats = possible_flights["latitude"].tolist()
 
-
+"""
+Visualising the data
+"""
 plt.clf()
 plt.figure(figsize=(15,9))
 
@@ -192,9 +222,8 @@ plt.show()
 
 #%% 
 """
+Perform analytics over the data
 Checking errors
-Observing this map I realize that there is a point in sicilia, This is really weird because
-I've never been to sicily, so lets analyze the error
 """
 
 sicilia_lat, sicilia_lon = 38.110274, 13.362093
@@ -232,11 +261,13 @@ plt.show()
 #%%
 """
 Predictive models with linear regresion
+Perform analytics over the data
 """
 
 model = smf.ols(formula="timestamp~latitude+longitude",data=data).fit()
 print(model.params)
-#print(model.sumary())
+print(model.summary())
+
 
 #Spliting the datagrame into train and test
 mask = np.random.rand(len(data)) < 0.8
@@ -245,7 +276,10 @@ test = data[~mask]
 
 pred = model.predict(train[["latitude","longitude"]])
 
-
+"""
+Plotting the results
+Visualising the data
+"""
 
 fig = plt.figure(figsize=(15,9))
 ax = fig.add_subplot(111, projection='3d')
